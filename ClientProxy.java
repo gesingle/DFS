@@ -9,11 +9,8 @@ import java.net.*;
  */
 public class ClientProxy implements ClientInterface {
 
-
 	private String ipName;				//ip name of the client
 	private ClientInterface client;		//reference to the remote client
-
-
 
 	//Constructor - constructors object for a client at given ip address and port.
 	public ClientProxy(String ipAddress, String port) throws RemoteException {
@@ -25,23 +22,38 @@ public class ClientProxy implements ClientInterface {
 		client = (ClientInterface) Naming.lookup(rmiClientAddress);
 	}
 
+	public ClientProxy(String name, ClientInterface client){
+		this.ipName = name;
+		this.client = client;
+	}
 
+	@Override
+	public boolean invalidate( ) throws RemoteException {
+		return client.invalidate();
+	}
 
+	@Override
+	public boolean writeback( ) throws 	RemoteException {
+		return client.writeback();
+	}
 
+	public String getName() {
+		return ipName;
+	}
+	@Override
+	public boolean equals(Object obj) {
+		if(obj == null){
+			return false;
+		}
 
-
-public boolean invalidate( ) throws RemoteException;
-public boolean writeback( ) throws 	RemoteException;
-
-
-
-
-
-
-
-
-
-
+		try {
+			ClientProxy comparedObject = (ClientProxy) obj;
+			return comparedObject.getName().equals(ipName);
+		}
+		catch(ClassCastException e){
+			return false;
+		}
+	}
 
 
 
