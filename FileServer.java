@@ -32,7 +32,7 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 		}
 		
 		// Register the client with the file
-		ClientProxy client = new ClientProxy(clientIP, port);
+		ClientProxy client = new ClientProxy(clientIP, Integer.toString(port));
 		
 		// if read requested, add the client as a reader and update
 		// state if necessary
@@ -53,6 +53,8 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 				file.state = CachedFile.OWNERSHIP_CHANGE;
 			}
 		}	
+		
+		return file.getContents();
 	}
 
 	/** 

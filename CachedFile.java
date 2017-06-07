@@ -29,7 +29,7 @@ public class CachedFile {
 	 * Caches a new file by reading and storing 
 	 * its contents from disk 
 	 */
-	public CachedFile(String filename) {
+	public CachedFile(String filename) throws IOException{
 
 		// file path
 		file = new File("/tmp/" + filename);
@@ -73,7 +73,7 @@ public class CachedFile {
 		}
 	}
 	
-	public void addWriter(ClientProxy client){
+	public void addWriter(ClientProxy client) throws RemoteException{
 		
 		if (!client.equals(owner)) {
 			synchronized (this) {
@@ -82,7 +82,11 @@ public class CachedFile {
 					try {
 						owner.writeback();
 						wait();
-					} catch (RemoteException e) {
+					} 
+					catch (InterruptedException e) {
+						continue;
+					}
+					catch (RemoteException e) {
 						throw new RemoteException("Previous owner failed to writeback.");
 					}
 				}
@@ -98,7 +102,7 @@ public class CachedFile {
 	 * The current owner relinquishes ownership and all readers
 	 * are invalidated
 	 */
-	public boolean update(FileContents contents){
+	public boolean update(FileContents contents) throws RemoteException{
 		
 		if (owner == null) {
 			return false;
@@ -117,8 +121,11 @@ public class CachedFile {
 		// update file contents in cache
 		data = contents.get();
 		// and on disk
-		fos = new FileOutputStream(file);
-		fos.write(contents.get(), 0, contents.get().length);
+		try{
+			fos = new FileOutputStream(file);
+			fos.write(contents.get(), 0, contents.get().length);
+		}
+		catch(IOException e){}
 		
 		// update state
 		state = (state == WRITE_SHARED) ? NOT_SHARED : WRITE_SHARED;
@@ -128,6 +135,14 @@ public class CachedFile {
 		}
 		
 		return true;
+	}
+	
+	/**
+     * Getter for file contents
+     */
+	public FileContents getContents() {
+		
+		return new FileContents(data);
 	}
 	
 

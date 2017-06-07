@@ -3,12 +3,13 @@ import java.util.*;
 import java.rmi.*;
 import java.rmi.server.*;
 import java.net.*;
+import java.net.UnknownHostException;
 
-public class FileClient extends UnicastRemoteObject implements ServerInterface {
+public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	private String ipName;				//ip name of the client
 	private ServerInterface fileServer;	//remote server for DFS
-	//private int port;
+
 	
 	private String fileName;			//name of the file cached locally
 	private File cachedFile;			//reference to the cached file
@@ -20,18 +21,21 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 	//possible states of the cache
 	private enum CacheState {INVALID, READ_SHARED, WRITE_OWNED, MODIFIED_OWNED, RELEASE_OWNERSHIP};
 
-	public FileClient(ServerInterface fileServer) throws RemoteException {
+	public FileClient(ServerInterface fileServer) throws RemoteException, IOException{
 
 		this.fileServer = fileServer;
 		String username = System.getProperty("user.name");
 		localPath = "/tmp/" + username + ".txt";	//set local path to file cache
-		cachedFile = new File("/tmp/" + username + ".txt").toPath());		//create a file to store into “/tmp/useraccount.txt”
+		cachedFile = new File("/tmp/" + username + ".txt");		//create a file to store into “/tmp/useraccount.txt”
 		if(!cachedFile.exists()){
 			cachedFile.createNewFile();
 			cachedFile.setReadable(true);	//allow file to be readable by default
 		}
 		//get ip name of the client
-		ipName = InetAddress.getLocalHost().getHostName();
+		try{
+			ipName = InetAddress.getLocalHost().getHostName();
+		}
+		catch(UnknownHostException e){}
 	}
 
 	public synchronized void openFile(String fname, char mode) throws IOException {
@@ -50,7 +54,7 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 			case INVALID:
 				//download requested file from server
 				downloadFile(fname, mode);
-				if(mode == READ){
+				if(mode == 'r'){
 					state = CacheState.READ_SHARED;
 				}
 				else{
@@ -62,7 +66,7 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 				break;	//do nothing
 			case READ_SHARED:
 				//if user wants to open file for writing, must get writeowned permissions from server with file
-				if(mode == WRITE){
+				if(mode == 'w'){
 					downloadFile(fname, mode);
 					state = CacheState.WRITE_OWNED;
 				}
@@ -94,15 +98,16 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		FileOutputStream writer = new FileOutputStream(cachedFile);
 		writer.write(contents.get());		//write contents of FileContents to cached file
 		writer.close();		//close file
-		writer.setWritable(mode == WRITE);	//set file to writable if client opened file for writing
+		cachedFile.setWritable(mode == 'w');	//set file to writable if client opened file for writing
 	}
 
 	private FileContents getFileContents() throws FileNotFoundException, IOException {
 
 		//byte array to read file contents into that is the size of the currently cached file
-		byte[] data = new byte[][(int) cachedFile.length()];
-		FileInputStream reader = new FileInputSteam(cachedFile);
-		FileContents contents = new FileContents(reader.read(data)); //create FileContents object with contents of cached file
+		byte[] data = new byte[(int) cachedFile.length()];
+		FileInputStream reader = new FileInputStream(cachedFile);
+		reader.read(data);
+		FileContents contents = new FileContents(data); //create FileContents object with contents of cached file
 		return contents;
 	}
 
@@ -111,12 +116,13 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
         try {
         	String[] command = new String[] {"emacs", localPath};
 	   	 	Runtime runtime = Runtime.getRuntime( );
-	    	Process process = Runtime.exec( command );	//execute command 
-	    	p.waitFor();		//have process wait for emacs session to complete.  Necessary to have session complete before writeback, etc. 
+	    	Process process = runtime.exec( command );	//execute command 
+	    	process.waitFor();		//have process wait for emacs session to complete.  Necessary to have session complete before writeback, etc. 
 	    }
 		catch ( IOException e ) {
-	    	e.printStackTrace( )
+	    	e.printStackTrace();
 		} 
+        catch(InterruptedException e){}
     }
 
     //completes the user editing session with the file
@@ -150,19 +156,12 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
     	}
     	else if(state == CacheState.MODIFIED_OWNED) {
     		//cached file was modified but user's emacs session is complete so upload file to server now
-    		//final FileContents contents?
-    		FileContents contents;
-    		try {
-    			//get FileContents from cached file
-    			contents = getCurrentContents();
-    		}
-    		catch(IOException e){}
     		//write back file - use seperate thread to avoid deadlock
     		(new Thread() {
     			public void run() {
     				try {
     					//upload file to server
-    					if(fileServer.upload(ipName, fileName, contents)){
+    					if(fileServer.upload(ipName, fileName, getFileContents())){
     						state = CacheState.READ_SHARED;		//change state
     					}
     				}
@@ -191,10 +190,10 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 			System.out.println("Connecting to server ...");
 			//look for the server instance that the client wants to access
 			String serverAddress = String.format("rmi://%s:%s/fileserver", args[0], args[1]);
-			fileServer =  ( ServerInterface ) Naming.lookup( serverAddress, fileserver );
+			ServerInterface fileServer =  (ServerInterface) Naming.lookup(serverAddress);
 
 			System.out.println("Starting client ...");
-		    FileClient client = new FileServer(fileServer);
+		    FileClient client = new FileClient(fileServer);
 		    //bind client name to ip address
 		    Naming.rebind( "rmi://localhost:" + args[0] + "/fileclient", client );
 
@@ -219,22 +218,16 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 				char mode = input.next().charAt(0);	//get mode from user
 
 				//open file for reading or writing
-				openFile(filename, mode);
+				client.openFile(filename, mode);
 				//start emacs session
-				runEmacs();
+				client.runEmacs();
 				//complete user session with file
-				completeSession();
+				client.completeSession();
 			}	
 		}
 		catch ( Exception e ) {
 		    e.printStackTrace( );
 		    System.exit( 1 );
 		}
-
-
-
 	}
-
-
-
 }

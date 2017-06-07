@@ -19,7 +19,11 @@ public class ClientProxy implements ClientInterface {
 
 		//look for the client instance that the server wants to access
 		String clientAddress = String.format("rmi://%s:%s/fileclient", ipAddress, port);
-		client = (ClientInterface) Naming.lookup(rmiClientAddress);
+		try{
+			client = (ClientInterface) Naming.lookup(clientAddress);
+		}
+		catch(NotBoundException e){}
+		catch(MalformedURLException e){}
 	}
 
 	public ClientProxy(String name, ClientInterface client){
