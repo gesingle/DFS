@@ -12,18 +12,19 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 	
 	private String fileName;			//name of the file cached locally
 	private File cachedFile;			//reference to the cached file
-	private String accessMode;			//current file access mode such as read or write
+	private String localPath;			//local path to file cache
+	//private String accessMode;			//current file access mode such as read or write
 	private boolean ownership;			//indicates if client owns the file - or is exclusively writing the file
 	private CacheState state = CacheState.INVALID;	//current state of the cache
 
 	//possible states of the cache
-	private enum CacheState { INVALID, READ_SHARED, WRITE_OWNED, MODIFIED_OWNED, RELEASE_OWNERSHIP};
-
+	private enum CacheState {INVALID, READ_SHARED, WRITE_OWNED, MODIFIED_OWNED, RELEASE_OWNERSHIP};
 
 	public FileClient(ServerInterface fileServer) throws RemoteException {
 
 		this.fileServer = fileServer;
 		String username = System.getProperty("user.name");
+		localPath = "/tmp/" + username + ".txt";	//set local path to file cache
 		cachedFile = new File("/tmp/" + username + ".txt").toPath());
 		if(!cachedFile.exists()){
 			cachedFile.createNewFile();
@@ -32,7 +33,6 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		//get ip name of the client
 		ipName = InetAddress.getLocalHost().getHostName();
 	}
-
 
 	public static void main (String args[]) {
 
@@ -56,18 +56,14 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		    //to get user input
 		    Scanner input = new Scanner( System.in );		
 		
-		
-		
 			while(true){
 
-	            System.out.print( "FileClient: file [r/w]: " );
-	            String filename = input.next( );  // read a file name to operate                   
-	            String mode = input.next( );      // check the read/write mode of this file
-
-	            System.out.println("FileClient: Next file to open");
+	            System.out.println("FileClient: Next file to open?\n" + "Filename: " );
 				String filename = input.next( );  // read a file name to operate   
-				System.out.println("How(r/w");	  
+				System.out.println("How(r/w: ");	  
 				char mode = input.next().charAt(0);	//get mode from user
+
+
 			}	
 
 
@@ -82,6 +78,94 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 
 
 	}
+
+	public synchronized void openFile(String fname, char mode) throws IOException {
+
+		//check if the cached file matches the user requested file
+		if(!fileName.equals(fname)){
+			//files don't match, upload current file to server if state is writeowned or modified owned
+			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
+				uploadFile();
+				state = CacheState.INVALID;		//set state to invalid so client can download desired file from server
+			}
+		}
+		//check state of cache to determine if client downloads server file or not
+		switch(state){
+
+			case INVALID:
+				//download requested file from server
+				downloadFile(fname, mode);
+				if(mode == READ){
+					state = CacheState.READ_SHARED;
+				}
+				else{
+					state = CacheState.WRITE_OWNED;
+				}
+				break;
+			case WRITE_OWNED:
+				//user can read or write in this state, nothing to do
+				break;	//do nothing
+			case READ_SHARED:
+				//if user wants to open file for writing, must get writeowned permissions from server with file
+				if(mode == WRITE){
+					downloadFile(fname, mode);
+					state = CacheState.WRITE_OWNED;
+				}
+				break;
+			case MODIFIED_OWNED:
+				//user already completed a session with file before, change state back to write since file was uploaded back to server
+				state = CacheState.WRITE_OWNED;
+				break;
+			default:
+				throw new IllegalStateException();
+
+		}
+	}
+
+	private boolean uploadFile() throws IOException {
+
+		return fileServer.upload(ipName, fileName, getFileContents());
+	}
+
+	private void downloadFile(String filename, char mode) throws IOException {
+
+		//download filename from server and get FileContents
+		FileContents contents = fileServer.download(ipName, filename, Character.toString(mode));
+		//set the clients cached file name and allow file to be writable
+		fileName = filename;
+		cachedFile.setWritable(true);	//allow file to be modified in case client wants to modify it
+
+		//get contents from FileContents object and transfer to File object stored in client
+		FileOutputStream writer = new FileOutputStream(cachedFile);
+		writer.write(contents.get());		//write contents of FileContents to cached file
+		writer.close();		//close file
+		writer.setWritable(mode == WRITE);	//set file to writable if client opened file for writing
+	}
+
+	 public FileContents download( String client, String filename, String mode )
+	throws RemoteException;
+
+	private FileContents getFileContents() throws FileNotFoundException, IOException {
+
+		//byte array to read file contents into that is the size of the currently cached file
+		byte[] data = new byte[][(int) cachedFile.length()];
+		FileInputStream reader = new FileInputSteam(cachedFile);
+		FileContents contents = new FileContents(reader.read(data)); //create FileContents object with contents of cached file
+		return contents;
+	}
+
+
+	public void runEmacs( String filename, FileContents file, String mode ) {
+        try {
+        	String[] command = new String[] {"emacs", localPath};
+	   	 	Runtime runtime = Runtime.getRuntime( );
+	    	Process process = Runtime.exec( command );	//execute command 
+	    	p.waitFor();		//have process wait for emacs session to complete.  Necessary to have session complete before writeback, etc. 
+	    }
+		catch ( IOException e ) {
+	    	e.printStackTrace( )
+		} 
+    }
 
 	
 	public synchronized boolean invalidate( ) throws RemoteException {
