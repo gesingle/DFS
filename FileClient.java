@@ -25,58 +25,13 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		this.fileServer = fileServer;
 		String username = System.getProperty("user.name");
 		localPath = "/tmp/" + username + ".txt";	//set local path to file cache
-		cachedFile = new File("/tmp/" + username + ".txt").toPath());
+		cachedFile = new File("/tmp/" + username + ".txt").toPath());		//create a file to store into “/tmp/useraccount.txt”
 		if(!cachedFile.exists()){
 			cachedFile.createNewFile();
-			cachedFile.setReadable(true);
+			cachedFile.setReadable(true);	//allow file to be readable by default
 		}
 		//get ip name of the client
 		ipName = InetAddress.getLocalHost().getHostName();
-	}
-
-	public static void main (String args[]) {
-
-		if ( args.length != 1 ) {
-		    System.err.println( "usage: java FileClient ipAddress port#" );
-		    System.exit( -1 );
-		}
-		//port = Integer.parseInt(args[0]);
-
-		try {
-			System.out.println("Connecting to server ...");
-			//look for the server instance that the client wants to access
-			String serverAddress = String.format("rmi://%s:%s/fileserver", args[0], args[1]);
-			fileServer =  ( ServerInterface ) Naming.lookup( serverAddress, fileserver );
-
-			System.out.println("Starting client ...");
-		    FileClient client = new FileServer(fileServer);
-		    //bind client name to ip address
-		    Naming.rebind( "rmi://localhost:" + args[0] + "/fileclient", client );
-
-		    //to get user input
-		    Scanner input = new Scanner( System.in );		
-		
-			while(true){
-
-	            System.out.println("FileClient: Next file to open?\n" + "Filename: " );
-				String filename = input.next( );  // read a file name to operate   
-				System.out.println("How(r/w: ");	  
-				char mode = input.next().charAt(0);	//get mode from user
-
-
-			}	
-
-
-
-
-		}
-		catch ( Exception e ) {
-		    e.printStackTrace( );
-		    System.exit( 1 );
-		}
-
-
-
 	}
 
 	public synchronized void openFile(String fname, char mode) throws IOException {
@@ -133,7 +88,7 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		FileContents contents = fileServer.download(ipName, filename, Character.toString(mode));
 		//set the clients cached file name and allow file to be writable
 		fileName = filename;
-		cachedFile.setWritable(true);	//allow file to be modified in case client wants to modify it
+		cachedFile.setWritable(true);	//allow file to be modified to write filecontents to it
 
 		//get contents from FileContents object and transfer to File object stored in client
 		FileOutputStream writer = new FileOutputStream(cachedFile);
@@ -141,9 +96,6 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		writer.close();		//close file
 		writer.setWritable(mode == WRITE);	//set file to writable if client opened file for writing
 	}
-
-	 public FileContents download( String client, String filename, String mode )
-	throws RemoteException;
 
 	private FileContents getFileContents() throws FileNotFoundException, IOException {
 
@@ -155,7 +107,7 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 	}
 
 
-	public void runEmacs( String filename, FileContents file, String mode ) {
+	public void runEmacs() {
         try {
         	String[] command = new String[] {"emacs", localPath};
 	   	 	Runtime runtime = Runtime.getRuntime( );
@@ -167,6 +119,18 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		} 
     }
 
+    //completes the user editing session with the file
+    public synchronized void completeSession() throws IOException {
+
+    	//ownership transer required - upload fie to server and change state
+		if (state == CacheState.RELEASE_OWNERSHIP) {	//state must have changed from write to release ownership during session
+			uploadFile();		//now that emacs session is completed, user required to upload file to server
+			state = CacheState.READ_SHARED;		//change state 
+		//user emacs session complete, file is now modified so set to modified owned
+		} else if (state == CacheState.WRITE_OWNED) {
+			state = CacheState.MODIFIED_OWNED;
+		}
+	}
 	
 	public synchronized boolean invalidate( ) throws RemoteException {
 
@@ -178,9 +142,98 @@ public class FileClient extends UnicastRemoteObject implements ServerInterface {
 		return false;
 	}
 
-    public boolean writeback( ) throws 	RemoteException;
+    public synchronized boolean writeback( ) throws 	RemoteException {
+    	//transfer of ownership, change state to release ownership - file uploaded after emacs session
+    	if(state == CacheState.WRITE_OWNED){
+    		state = CacheState.RELEASE_OWNERSHIP;
+    		return true;
+    	}
+    	else if(state == CacheState.MODIFIED_OWNED) {
+    		//cached file was modified but user's emacs session is complete so upload file to server now
+    		//final FileContents contents?
+    		FileContents contents;
+    		try {
+    			//get FileContents from cached file
+    			contents = getCurrentContents();
+    		}
+    		catch(IOException e){}
+    		//write back file - use seperate thread to avoid deadlock
+    		(new Thread() {
+    			public void run() {
+    				try {
+    					//upload file to server
+    					if(fileServer.upload(ipName, fileName, contents)){
+    						state = CacheState.READ_SHARED;		//change state
+    					}
+    				}
+    				catch(IOException e){
+    					e.printStackTrace();
+    				}
+    			}
+
+    		}).start();
+    		return true;
+    	}
+    	return false;
+    }
 
 
+
+	public static void main (String args[]) {
+
+		if ( args.length != 1 ) {
+		    System.err.println( "usage: java FileClient ipAddress port#" );
+		    System.exit( -1 );
+		}
+		//port = Integer.parseInt(args[0]);
+
+		try {
+			System.out.println("Connecting to server ...");
+			//look for the server instance that the client wants to access
+			String serverAddress = String.format("rmi://%s:%s/fileserver", args[0], args[1]);
+			fileServer =  ( ServerInterface ) Naming.lookup( serverAddress, fileserver );
+
+			System.out.println("Starting client ...");
+		    FileClient client = new FileServer(fileServer);
+		    //bind client name to ip address
+		    Naming.rebind( "rmi://localhost:" + args[0] + "/fileclient", client );
+
+		    //to get user input
+		    Scanner input = new Scanner( System.in );		
+			
+			//keep looping til user is done and wishes to exit
+			while(true){
+				//ask user if wish to exit
+				System.out.print("Do you want to exit? [y/n]: ");
+				if (input.next().equals("y")) {
+					System.out.println("Writing any changes ...");
+					client.writeback();
+					client.completeSession();
+					System.out.println("DONE");
+					System.exit(0);
+				}
+
+	            System.out.println("FileClient: Next file to open?\n" + "Filename: " );
+				String filename = input.next( );  // read a file name to operate   
+				System.out.println("How(r/w: ");	  
+				char mode = input.next().charAt(0);	//get mode from user
+
+				//open file for reading or writing
+				openFile(filename, mode);
+				//start emacs session
+				runEmacs();
+				//complete user session with file
+				completeSession();
+			}	
+		}
+		catch ( Exception e ) {
+		    e.printStackTrace( );
+		    System.exit( 1 );
+		}
+
+
+
+	}
 
 
 
