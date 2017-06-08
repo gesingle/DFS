@@ -1,7 +1,9 @@
-import java.io.*;
-import java.util.*;
 import java.rmi.*;
 import java.rmi.server.*;
+import java.rmi.registry.*;
+import java.net.*;
+import java.io.*;
+import java.util.*;
 
 public class FileServer extends UnicastRemoteObject implements ServerInterface {
 
@@ -97,15 +99,27 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 		}
 
 		try {
+			int port = Integer.parseInt(args[0]);
 			System.out.println("Starting server...");
-			FileServer server = new FileServer(Integer.parseInt(args[0]));
-
+			startRegistry(port);
+			FileServer server = new FileServer(port);
 			//bind server name to ip adress
-			Naming.rebind( "rmi://localhost:" + args[0] + "/fileserver", server );
+			Naming.rebind( "rmi://localhost:" + port + "/fileserver", server );
 			System.out.println("Server started.");
 		} 
 		catch ( Exception e ) {
+			e.printStackTrace();
 			System.exit( 1 );
 		}
 	}
+	
+	 private static void startRegistry( int port ) throws RemoteException {
+			try {
+			    Registry registry = LocateRegistry.getRegistry( port );
+			    registry.list( );  
+			}
+			catch ( RemoteException e ) { 
+			    Registry registry = LocateRegistry.createRegistry( port );
+			}
+	 }
 }
