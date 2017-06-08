@@ -101,7 +101,7 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 		try {
 			int port = Integer.parseInt(args[0]);
 			System.out.println("Starting server...");
-			startRegistry(port);
+			//startRegistry(port);
 			FileServer server = new FileServer(port);
 			//bind server name to ip adress
 			Naming.rebind( "rmi://localhost:" + port + "/fileserver", server );
@@ -113,13 +113,5 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 		}
 	}
 	
-	 private static void startRegistry( int port ) throws RemoteException {
-			try {
-			    Registry registry = LocateRegistry.getRegistry( port );
-			    registry.list( );  
-			}
-			catch ( RemoteException e ) { 
-			    Registry registry = LocateRegistry.createRegistry( port );
-			}
-	 }
+
 }
