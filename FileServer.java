@@ -33,6 +33,7 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 			cache.add(file);
 		}
 		
+		System.out.println("File created: " +  filename);
 		// Register the client with the file
 		ClientProxy client = new ClientProxy(clientIP, Integer.toString(port));
 		

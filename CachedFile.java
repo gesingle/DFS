@@ -32,7 +32,7 @@ public class CachedFile {
 	public CachedFile(String filename) throws IOException{
 
 		// file path
-		file = new File("/tmp/" + filename);
+		file = new File("tmp/" + filename);
 		// get the file's data from disk
 		data = new byte[(int) file.length()];
 		fis = new FileInputStream(file);

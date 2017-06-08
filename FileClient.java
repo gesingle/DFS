@@ -9,8 +9,6 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	private String ipName;				//ip name of the client
 	private ServerInterface fileServer;	//remote server for DFS
-
-	
 	private String fileName;			//name of the file cached locally
 	private File cachedFile;			//reference to the cached file
 	private String localPath;			//local path to file cache
@@ -41,13 +39,22 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	public synchronized void openFile(String fname, char mode) throws IOException {
 
 		//check if the cached file matches the user requested file
-		if(!fileName.equals(fname)){
+		if(fileName == null){
 			//files don't match, upload current file to server if state is writeowned or modified owned
 			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
 				uploadFile();
 				state = CacheState.INVALID;		//set state to invalid so client can download desired file from server
 			}
 		}
+		
+		else if(!fname.equals(fileName)){
+			//files don't match, upload current file to server if state is writeowned or modified owned
+			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
+				uploadFile();
+				state = CacheState.INVALID;		//set state to invalid so client can download desired file from server
+			}
+		}
+		
 		//check state of cache to determine if client downloads server file or not
 		switch(state){
 
@@ -180,7 +187,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	public static void main (String args[]) {
 
-		if ( args.length != 1 ) {
+		if ( args.length != 2 ) {
 		    System.err.println( "usage: java FileClient ipAddress port#" );
 		    System.exit( -1 );
 		}
@@ -189,13 +196,14 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		try {
 			System.out.println("Connecting to server ...");
 			//look for the server instance that the client wants to access
-			String serverAddress = String.format("rmi://%s:%s/fileserver", args[0], args[1]);
-			ServerInterface fileServer =  (ServerInterface) Naming.lookup(serverAddress);
+			String serverIp = args[0];
+			int port = Integer.parseInt(args[1]);
+			ServerInterface fileServer =  (ServerInterface) Naming.lookup( "rmi://" + serverIp + ":" + port + "/fileserver" );
 
 			System.out.println("Starting client ...");
 		    FileClient client = new FileClient(fileServer);
 		    //bind client name to ip address
-		    Naming.rebind( "rmi://localhost:" + args[0] + "/fileclient", client );
+		    //Naming.rebind( "rmi://localhost:" + port + "/fileclient", client );
 
 		    //to get user input
 		    Scanner input = new Scanner( System.in );		
