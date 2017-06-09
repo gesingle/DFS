@@ -21,10 +21,8 @@ public class CachedFile {
 	
 	private LinkedList<ClientProxy> readers;					//list of readers of this cached file
 	private ClientProxy owner;									//owner of the cached file											
-	private File file;											//
-	private byte[] data;	
-	private FileInputStream fis;
-	private FileOutputStream fos;
+	private File file;											//cached file
+	private byte[] data;										//data of the cached file
 
 	/** 
 	 * Constructor
@@ -38,11 +36,10 @@ public class CachedFile {
 		file = new File("tmp/" + filename);
 		// get the file's data from disk
 		data = new byte[(int) file.length()];
-		fis = new FileInputStream(file);
+		FileInputStream fis = new FileInputStream(file);
 		fis.read(data);
+		//create readers list
 		readers = new LinkedList<ClientProxy>();
-		//readers = new Vector<ClientProxy>();
-		state = NOT_SHARED;
 	}
 	
 	/**
@@ -53,21 +50,23 @@ public class CachedFile {
 		return file.getName();
 	}
 	
-	
 	/**
 	 * Adds a new reader to the list of readers
 	 */
 	public void addReader(ClientProxy client){
 		
+		//add reader to the readers list only if the client isn't already in the list
 		if(!readers.contains(client)){
 			readers.add(client);
 		}
-
-
-		
 	}
 
+	/**
+	 * Adds a new reader to the list of readers - synchronized for concurrent thread access 
+	 */
 	public synchronized void registerReader(ClientProxy client) {
+
+			//calls addReader() but synchroniously 
 			addReader(client);
 	}
 	
@@ -76,11 +75,7 @@ public class CachedFile {
 	 */
 	public synchronized void removeReader(String client){
 		
-		/*for(ClientProxy cp : readers){
-			if(cp.getName().equals(client)){
-				readers.remove(cp);
-			}
-		}*/
+		//create an iterator to go over the reader list
 		Iterator<ClientProxy> it = readers.iterator();
 		// Remove readers matching client name.
         while (it.hasNext()) {
@@ -90,58 +85,30 @@ public class CachedFile {
 		}
 	}
 	
+	/**
+	 * Add a writer (owner) to the cached file
+	 */
 	public void addWriter(ClientProxy client) throws RemoteException{
 		
-			/*readers.remove(client);
-
+		// If the client is present in the reader list, remove client from reader list
+		readers.remove(client);
 		if (!client.equals(owner)) {
 			synchronized (this) {
-                // Wait for current owner to writeBack() and release the file
+                // Wait until the previous owner has released ownership
 				while (owner != null) {
 					try {
+						//write the cached file back to the server
 						owner.writeback();
-						wait();
-					} 
-					catch (InterruptedException e) {
+						wait();	//wait for current owner to release ownership
+					} catch (InterruptedException e) {
 						continue;
-					}
-					catch (RemoteException e) {
-						throw new RemoteException("Previous owner failed to writeback.");
+					} catch (RemoteException e) {
+						throw new RemoteException("writeback to owner failed", e);
 					}
 				}
 			}
 		} 
-		
-		owner = client;*/
-
-			// Remove client from reader list, if present in reader list.
-		readers.remove(client);
-		if (!client.equals(owner)) {
-			synchronized (this) {
-                // Wait until the previous owner has released ownership.
-				while (owner != null) {
-					try {
-						System.out.println("RegisterWrite for <" + client.getName()
-								+ "> Waiting for writeback from \"" + owner.getName() + "\"");
-						owner.writeback();
-						wait();
-						System.out.println("Writeback complete. Continue down for <"
-								+ client.getName() + ">");
-					} catch (InterruptedException e) {
-						System.err.println("Interrupt while waiting for writeback from <"
-								+ owner.getName() + ">");
-						continue;
-					} catch (RemoteException e) {
-						throw new RemoteException("Writeback request to current owner failed!", e);
-					}
-				}
-			}
-		} else {
-			System.out.println("Client <" + client.getName() + "> already owns file <"
-					+ file.getName() + "> for write.");
-		}
-		owner = client;
-		System.out.println("New owner not null: " + (owner != null ? "true" : "FALSE"));
+		owner = client;				//set the new owner to the parameter clientproxy object
 	}
 	
 	/**
@@ -151,55 +118,26 @@ public class CachedFile {
 	 * are invalidated
 	 */
 	public boolean update(String clientName, FileContents contents) throws RemoteException{
-		/*System.out.println("in CF update");
-		if (owner == null) {
-			return false;
-		}
-		
-        // Invalidate all readers.
-		for(ClientProxy cp : readers){
-			System.out.println("invalidating cp");
-			cp.invalidate();
-			readers.remove(cp);
-		}
-		System.out.println("done invalidating");
-		// previous owner is still a reader
-        readers.add(owner);
-        // but no longer owns the file
-		owner = null;
-		// update file contents in cache
-		System.out.println("getting contents");
-		data = contents.get();*/
 
-		System.out.println("Update from <" + clientName + "> for file <" + file.getName()
-				+ ">. Current owner is <" + (owner == null ? "-" : owner.getName()) + ">");
+		//error handling
 		if (owner == null) {
 			return false;
 		}
         // Invalidate readers.
-		System.out
-				.println("Invalidating readers for file previously owned by <" + clientName + ">");
 		while (!readers.isEmpty()) {
 			ClientProxy reader = readers.remove();
-			System.out.println("Invalidating reader <" + reader
-					+ "> for file previously owned by <" + clientName + ">");
+			//have reader invalidate their cached file contents
 			reader.invalidate();
 		}
-        	readers.add(owner);
-		owner = null;
-		data = contents.get();
-		// and on disk
-		/*try{
-			System.out.println("writing contents back to cache");
-			fos = new FileOutputStream(file);
-			fos.write(contents.get(), 0, contents.get().length);
-		}
-		catch(IOException e){}*/
-
+        	readers.add(owner);			//add owner to the readers list
+		owner = null;					
+		data = contents.get();			//get contents from the cached file to be updated
+		
+		//create a new thread to asynchroniously update the file to avoid a deadlock situation
 		(new Thread() {
     			public void run() {
     				try {
-    					//upload file to server
+    					//update the contents of the cached file
     					FileOutputStream f = new FileOutputStream(file);
 						f.write(contents.get());
     					
@@ -211,16 +149,10 @@ public class CachedFile {
 
     		}).start();
 
-			
-
-		
-		// update state
-		//state = WRITE_SHARED;
-		
+		//notify any waiting threads that were waiting for ownership change/ or a the file to be updated
 		synchronized (this) {
 			notifyAll();
 		}
-		
 		return true;
 	}
 	
@@ -231,6 +163,4 @@ public class CachedFile {
 		
 		return new FileContents(data);
 	}
-	
-
 }

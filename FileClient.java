@@ -123,6 +123,8 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	//opens an emacs session for the client
 	public void runEmacs() {
+
+		System.out.println("Starting emacs session.");
         try {
         	String[] command = new String[] {"emacs", localPath};
 	   	 	Runtime runtime = Runtime.getRuntime( );
@@ -133,6 +135,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	    	e.printStackTrace();
 		} 
         catch(InterruptedException e){}
+        System.out.println("Emacs session complete.");
     }
 
     //completes the user editing session with the file
@@ -230,15 +233,6 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 				System.out.println("How(r/w): ");	  
 				char mode = input.next().charAt(0);	//get mode from user
 
-				//error handling for user input
-				while(true){
-					System.out.println("The mode you entered isn't valid.");
-					System.out.println("How(r/w): ");	  
-					mode = input.next().charAt(0);	//get mode from user
-					if(mode == 'r' || mode == 'w'){
-						break;
-					}
-				}
 				//open file for reading or writing
 				client.openFile(filename, mode);
 				//start emacs session
