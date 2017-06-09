@@ -198,7 +198,7 @@ public class CachedFile {
 		}
 		catch(IOException e){}*/
 
-		(new Thread() {
+		/*(new Thread() {
     			public void run() {
     				try {
     					//upload file to server
@@ -215,9 +215,13 @@ public class CachedFile {
 					//}
     			}
 
-    		}).start();
+    		}).start();*/
+    		(new AsyncFileWriter(file, data)).start();
+				synchronized (this) {
+			notifyAll();
+		}
 
-			
+		System.out.println("Finished update contents from <" + clientName + ">");
 
 		
 		// update state
