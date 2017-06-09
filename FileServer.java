@@ -18,7 +18,53 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 	}
 
 	public FileContents download(String clientIP, String filename, String mode) throws RemoteException{
-		System.out.println("in server - download");
+		
+		for (CachedFile file : cache) {
+			if (!file.getName().equals(filename))
+				file.removeReader(clientIP);
+		}
+
+		CachedFile file = getCachedFile(filename);
+		System.out.println(String.format("Downloading file \"%s\" in mode [%s] to client \"%s\"",
+				filename, mode, clientIP));
+        // If file is not cached, cache it
+		if (file == null) {
+			System.out.println("\tFile not cached. Caching file. ");
+			try {
+				file = new CachedFile(filename);
+			} catch (IOException e) {
+				throw new RemoteException("Could not open requested file!", e);
+			}
+			cache.add(file);
+		}
+        // Regiser client for access to this file.
+		try {
+			ClientProxy client = new ClientProxy(clientIP, Integer.toString(port));
+			if (mode.equals("r")) {
+				System.out.println("Registering Reader");
+				file.registerReader(client);
+			} else {
+				System.out.println("Registering Writer");
+				file.addWriter(client);
+			}
+			System.out.println("Sending to client <" + clientIP + "> contents:");
+			System.out.println(new String(file.getContents().get()));
+			return file.getContents();
+		} catch (IllegalArgumentException e) {
+			throw new RemoteException("Bad request!", e);
+		}
+
+
+
+
+
+
+
+
+
+
+
+		/*System.out.println("in server - download");
 		// pointer for the file
 		CachedFile file = getCachedFile(filename);
 		
@@ -59,7 +105,7 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 			//}
 		}	
 		
-		return file.getContents();
+		return file.getContents();*/
 	}
 
 	/** 
@@ -69,11 +115,11 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 		System.out.println("in server - upload");
 		CachedFile file = getCachedFile(filename);
 		// return false if file is not in cache
-		if((file == null) || (file.state == CachedFile.NOT_SHARED) || (file.state == CachedFile.READ_SHARED)){
-			return false;
-		}
+		//if((file == null) || (file.state == CachedFile.NOT_SHARED) || (file.state == CachedFile.READ_SHARED)){
+		//	return false;
+		//}
 		System.out.println("calling file.update");
-		return file.update(contents);
+		return file.update(client, contents);
 		
 	}
 
