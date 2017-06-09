@@ -1,3 +1,9 @@
+/*
+*	@author Tiana Greisel and Garrett Singletary
+*	@title	CSS434 - Program 4 Distributed File System
+*	
+*/
+
 import java.rmi.*;
 import java.rmi.server.*;
 import java.rmi.registry.*;

@@ -1,3 +1,9 @@
+/*
+*	@author Tiana Greisel and Garrett Singletary
+*	@title	CSS434 - Program 4 Distributed File System
+*	
+*/
+
 import java.io.*;
 import java.rmi.RemoteException;
 import java.util.Vector;
@@ -12,18 +18,10 @@ import java.util.List;
  * @version CSS434 DFS 
  */
 public class CachedFile {
-
-	public static final int NOT_SHARED = 0;
-	public static final int READ_SHARED = 1;
-	public static final int WRITE_SHARED = 2;
-	public static final int OWNERSHIP_CHANGE = 3;
 	
-
-	//private Vector<ClientProxy> readers;
-	private LinkedList<ClientProxy> readers;
-	private ClientProxy owner;
-	public int state;
-	private File file;
+	private LinkedList<ClientProxy> readers;					//list of readers of this cached file
+	private ClientProxy owner;									//owner of the cached file											
+	private File file;											//
 	private byte[] data;	
 	private FileInputStream fis;
 	private FileOutputStream fos;
@@ -198,7 +196,7 @@ public class CachedFile {
 		}
 		catch(IOException e){}*/
 
-		/*(new Thread() {
+		(new Thread() {
     			public void run() {
     				try {
     					//upload file to server
@@ -209,19 +207,11 @@ public class CachedFile {
     				catch(IOException e){
     					e.printStackTrace();
     				}
-
-    				//synchronized (this) {
-					//	notifyAll();
-					//}
     			}
 
-    		}).start();*/
-    		(new AsyncFileWriter(file, data)).start();
-				synchronized (this) {
-			notifyAll();
-		}
+    		}).start();
 
-		System.out.println("Finished update contents from <" + clientName + ">");
+			
 
 		
 		// update state

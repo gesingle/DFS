@@ -1,3 +1,9 @@
+/*
+*	@author Tiana Greisel and Garrett Singletary
+*	@title	CSS434 - Program 4 Distributed File System
+*	
+*/
+
 import java.io.*;
 import java.util.*;
 import java.rmi.*;
@@ -19,6 +25,8 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	//possible states of the cache
 	private enum CacheState {INVALID, READ_SHARED, WRITE_OWNED, MODIFIED_OWNED, RELEASE_OWNERSHIP};
 
+	//Constructor, constructs a FileClient by passing it the FileServer object it wishes
+	//to connect with and sets the local path, and default file for the user.
 	public FileClient(ServerInterface fileServer) throws RemoteException, IOException{
 
 		this.fileServer = fileServer;
@@ -36,17 +44,9 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		catch(UnknownHostException e){}
 	}
 
+	//opens a file given the parameter's filename and the mode requested by the user.
 	public synchronized void openFile(String fname, char mode) throws IOException {
 
-		//check if the cached file matches the user requested file
-		/*if(fileName == null){
-			//files don't match, upload current file to server if state is writeowned or modified owned
-			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
-				uploadFile();
-				state = CacheState.INVALID;		//set state to invalid so client can download desired file from server
-			}
-		}*/
-		
 		if(!fname.equals(fileName) && fname != null){
 			//files don't match, upload current file to server if state is writeowned or modified owned
 			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
@@ -88,11 +88,13 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		}
 	}
 
+	//calls the server's remote upload function to upload a file back to the server.
 	private boolean uploadFile() throws IOException {
 
 		return fileServer.upload(ipName, fileName, getFileContents());
 	}
 
+	//calls the servers remote download function to download a new file from the server.
 	private void downloadFile(String filename, char mode) throws IOException {
 
 		//download filename from server and get FileContents
@@ -108,6 +110,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		cachedFile.setWritable(mode == 'w');	//set file to writable if client opened file for writing
 	}
 
+	//returns the file contents of the currently cached file
 	private FileContents getFileContents() throws FileNotFoundException, IOException {
 
 		//byte array to read file contents into that is the size of the currently cached file
@@ -118,7 +121,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		return contents;
 	}
 
-
+	//opens an emacs session for the client
 	public void runEmacs() {
         try {
         	String[] command = new String[] {"emacs", localPath};
@@ -145,6 +148,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		}
 	}
 	
+	//invalidates the clients currently cached file - sets state to invalid.  called remotely by server
 	public synchronized boolean invalidate( ) throws RemoteException {
 
 		 // set the DFS client’s file state to “Invalid”
@@ -155,7 +159,8 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 		return false;
 	}
 
-    public synchronized boolean writeback( ) throws 	RemoteException {
+	//if there is an ownership change, the server calls this function to have the client write back its cached file contents
+    public synchronized boolean writeback( ) throws RemoteException {
     	//transfer of ownership, change state to release ownership - file uploaded after emacs session
     	if(state == CacheState.WRITE_OWNED){
     		state = CacheState.RELEASE_OWNERSHIP;
@@ -176,23 +181,23 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
     					e.printStackTrace();
     				}
     			}
-
     		}).start();
     		return true;
     	}
     	return false;
     }
 
-
-
+    //main function - connects to the FileServer, constructs a FileClient, and starts a session with the user
+    //continuously asking them for the name of the file they want to open, and the mode they wish to open the
+    //file in, either (r/w) until the user wishes to end the session, at which time the cached file is uploaded
+    //back to the server.
 	public static void main (String args[]) {
 
 		if ( args.length != 2 ) {
 		    System.err.println( "usage: java FileClient ipAddress port#" );
 		    System.exit( -1 );
 		}
-		//port = Integer.parseInt(args[0]);
-
+	
 		try {
 			System.out.println("Connecting to server ...");
 			//look for the server instance that the client wants to access
@@ -219,12 +224,12 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 					System.out.println("DONE");
 					System.exit(0);
 				}
-
+				//prompt the user to enter filename for the file to open and the mode
 	            System.out.println("FileClient: Next file to open?\n" + "Filename: " );
 				String filename = input.next( );  // read a file name to operate   
 				System.out.println("How(r/w): ");	  
 				char mode = input.next().charAt(0);	//get mode from user
-				
+
 				//error handling for user input
 				while(true){
 					System.out.println("The mode you entered isn't valid.");
@@ -233,9 +238,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 					if(mode == 'r' || mode == 'w'){
 						break;
 					}
-
 				}
-
 				//open file for reading or writing
 				client.openFile(filename, mode);
 				//start emacs session
