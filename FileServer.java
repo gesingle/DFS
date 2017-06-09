@@ -18,7 +18,7 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 	}
 
 	public FileContents download(String clientIP, String filename, String mode) throws RemoteException{
-		
+		System.out.println("in server - download");
 		// pointer for the file
 		CachedFile file = getCachedFile(filename);
 		
@@ -33,7 +33,6 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 			cache.add(file);
 		}
 		
-		System.out.println("File created: " +  filename);
 		// Register the client with the file
 		ClientProxy client = new ClientProxy(clientIP, Integer.toString(port));
 		
@@ -55,6 +54,9 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 			else if(file.state == CachedFile.WRITE_SHARED){
 				file.state = CachedFile.OWNERSHIP_CHANGE;
 			}
+			//else if(file.state == CachedFile.NOT_SHARED){
+				//file.state = CachedFile.WRITE_SHARED;
+			//}
 		}	
 		
 		return file.getContents();
@@ -64,14 +66,13 @@ public class FileServer extends UnicastRemoteObject implements ServerInterface {
 	 * Updates the contents of a file on client request
 	 */
 	public boolean upload( String client, String filename, FileContents contents ) throws RemoteException{
-		
+		System.out.println("in server - upload");
 		CachedFile file = getCachedFile(filename);
-		
 		// return false if file is not in cache
 		if((file == null) || (file.state == CachedFile.NOT_SHARED) || (file.state == CachedFile.READ_SHARED)){
 			return false;
 		}
-		
+		System.out.println("calling file.update");
 		return file.update(contents);
 		
 	}

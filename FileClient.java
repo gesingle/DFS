@@ -21,8 +21,10 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	public FileClient(ServerInterface fileServer) throws RemoteException, IOException{
 
+		
 		this.fileServer = fileServer;
 		String username = System.getProperty("user.name");
+		System.out.println("username = " + username);
 		localPath = "/tmp/" + username + ".txt";	//set local path to file cache
 		cachedFile = new File("/tmp/" + username + ".txt");		//create a file to store into “/tmp/useraccount.txt”
 		if(!cachedFile.exists()){
@@ -37,24 +39,16 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	}
 
 	public synchronized void openFile(String fname, char mode) throws IOException {
-
-		//check if the cached file matches the user requested file
-		if(fileName == null){
+		
+		System.out.println("in client - open file");
+		
+		if(!fname.equals(fileName)){
 			//files don't match, upload current file to server if state is writeowned or modified owned
 			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
 				uploadFile();
 				state = CacheState.INVALID;		//set state to invalid so client can download desired file from server
 			}
 		}
-		
-		else if(!fname.equals(fileName)){
-			//files don't match, upload current file to server if state is writeowned or modified owned
-			if(state == CacheState.WRITE_OWNED || state == CacheState.MODIFIED_OWNED){
-				uploadFile();
-				state = CacheState.INVALID;		//set state to invalid so client can download desired file from server
-			}
-		}
-		
 		//check state of cache to determine if client downloads server file or not
 		switch(state){
 
@@ -90,11 +84,13 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	private boolean uploadFile() throws IOException {
 
+		System.out.println("in client - upload file");
 		return fileServer.upload(ipName, fileName, getFileContents());
 	}
 
 	private void downloadFile(String filename, char mode) throws IOException {
 
+		System.out.println("in client - download file");
 		//download filename from server and get FileContents
 		FileContents contents = fileServer.download(ipName, filename, Character.toString(mode));
 		//set the clients cached file name and allow file to be writable
@@ -109,7 +105,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	}
 
 	private FileContents getFileContents() throws FileNotFoundException, IOException {
-
+		System.out.println("in client - get file contents");
 		//byte array to read file contents into that is the size of the currently cached file
 		byte[] data = new byte[(int) cachedFile.length()];
 		FileInputStream reader = new FileInputStream(cachedFile);
@@ -120,6 +116,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 
 	public void runEmacs() {
+		System.out.println(localPath);
         try {
         	String[] command = new String[] {"emacs", localPath};
 	   	 	Runtime runtime = Runtime.getRuntime( );
@@ -134,7 +131,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
     //completes the user editing session with the file
     public synchronized void completeSession() throws IOException {
-
+    	System.out.println("in client - complete session");
     	//ownership transer required - upload fie to server and change state
 		if (state == CacheState.RELEASE_OWNERSHIP) {	//state must have changed from write to release ownership during session
 			uploadFile();		//now that emacs session is completed, user required to upload file to server
@@ -146,7 +143,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	}
 	
 	public synchronized boolean invalidate( ) throws RemoteException {
-
+		System.out.println("in file client - invalidate");
 		 // set the DFS client’s file state to “Invalid”
 		if(state == CacheState.READ_SHARED){
 			state = CacheState.INVALID;
@@ -156,6 +153,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 	}
 
     public synchronized boolean writeback( ) throws 	RemoteException {
+    	System.out.println("in client - writeback");
     	//transfer of ownership, change state to release ownership - file uploaded after emacs session
     	if(state == CacheState.WRITE_OWNED){
     		state = CacheState.RELEASE_OWNERSHIP;
@@ -203,7 +201,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 			System.out.println("Starting client ...");
 		    FileClient client = new FileClient(fileServer);
 		    //bind client name to ip address
-		    //Naming.rebind( "rmi://localhost:" + port + "/fileclient", client );
+		    Naming.rebind( "rmi://localhost:" + port + "/fileclient", client );
 
 		    //to get user input
 		    Scanner input = new Scanner( System.in );		
@@ -222,7 +220,7 @@ public class FileClient extends UnicastRemoteObject implements ClientInterface {
 
 	            System.out.println("FileClient: Next file to open?\n" + "Filename: " );
 				String filename = input.next( );  // read a file name to operate   
-				System.out.println("How(r/w: ");	  
+				System.out.println("How(r/w): ");	  
 				char mode = input.next().charAt(0);	//get mode from user
 
 				//open file for reading or writing

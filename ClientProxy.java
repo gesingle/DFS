@@ -21,6 +21,7 @@ public class ClientProxy implements ClientInterface {
 		String clientAddress = String.format("rmi://%s:%s/fileclient", ipAddress, port);
 		try{
 			client = (ClientInterface) Naming.lookup(clientAddress);
+
 		}
 		catch(NotBoundException e){}
 		catch(MalformedURLException e){}
@@ -33,6 +34,7 @@ public class ClientProxy implements ClientInterface {
 
 	@Override
 	public boolean invalidate( ) throws RemoteException {
+		System.out.println("in client proxy - invalidate");
 		return client.invalidate();
 	}
 

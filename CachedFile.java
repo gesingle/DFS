@@ -103,32 +103,35 @@ public class CachedFile {
 	 * are invalidated
 	 */
 	public boolean update(FileContents contents) throws RemoteException{
-		
+		System.out.println("in CF update");
 		if (owner == null) {
 			return false;
 		}
 		
         // Invalidate all readers.
 		for(ClientProxy cp : readers){
+			System.out.println("invalidating cp");
 			cp.invalidate();
 			readers.remove(cp);
 		}
-		
+		System.out.println("done invalidating");
 		// previous owner is still a reader
         readers.add(owner);
         // but no longer owns the file
 		owner = null;
 		// update file contents in cache
+		System.out.println("getting contents");
 		data = contents.get();
 		// and on disk
 		try{
+			System.out.println("writing contents back to cache");
 			fos = new FileOutputStream(file);
 			fos.write(contents.get(), 0, contents.get().length);
 		}
 		catch(IOException e){}
 		
 		// update state
-		state = (state == WRITE_SHARED) ? NOT_SHARED : WRITE_SHARED;
+		state = WRITE_SHARED;
 		
 		synchronized (this) {
 			notifyAll();
