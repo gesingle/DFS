@@ -94,7 +94,7 @@ public class CachedFile {
 	
 	public void addWriter(ClientProxy client) throws RemoteException{
 		
-			readers.remove(client);
+			/*readers.remove(client);
 
 		if (!client.equals(owner)) {
 			synchronized (this) {
@@ -114,7 +114,36 @@ public class CachedFile {
 			}
 		} 
 		
+		owner = client;*/
+
+			// Remove client from reader list, if present in reader list.
+		readers.remove(client);
+		if (!client.equals(owner)) {
+			synchronized (this) {
+                // Wait until the previous owner has released ownership.
+				while (owner != null) {
+					try {
+						System.out.println("RegisterWrite for <" + client.getName()
+								+ "> Waiting for writeback from \"" + owner.getName() + "\"");
+						owner.writeback();
+						wait();
+						System.out.println("Writeback complete. Continue down for <"
+								+ client.getName() + ">");
+					} catch (InterruptedException e) {
+						System.err.println("Interrupt while waiting for writeback from <"
+								+ owner.getName() + ">");
+						continue;
+					} catch (RemoteException e) {
+						throw new RemoteException("Writeback request to current owner failed!", e);
+					}
+				}
+			}
+		} else {
+			System.out.println("Client <" + client.getName() + "> already owns file <"
+					+ file.getName() + "> for write.");
+		}
 		owner = client;
+		System.out.println("New owner not null: " + (owner != null ? "true" : "FALSE"));
 	}
 	
 	/**
@@ -181,9 +210,9 @@ public class CachedFile {
     					e.printStackTrace();
     				}
 
-    				synchronized (this) {
-						notifyAll();
-					}
+    				//synchronized (this) {
+					//	notifyAll();
+					//}
     			}
 
     		}).start();
@@ -194,9 +223,9 @@ public class CachedFile {
 		// update state
 		//state = WRITE_SHARED;
 		
-		//synchronized (this) {
-		//	notifyAll();
-		//}
+		synchronized (this) {
+			notifyAll();
+		}
 		
 		return true;
 	}
